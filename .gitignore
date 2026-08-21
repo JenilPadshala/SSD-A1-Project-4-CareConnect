@@ -1,0 +1,4 @@
+// ignore Instructions directory
+Instructions/
+
+.DS_Store
