@@ -32,16 +32,16 @@ Test NursePing documents use the following structure:
 ```
 Also we have two files for this workflow 3
 - `02_seed_nurse_pings.js`
-- `03_nearest_mobile_nurse.js`
+- `02_workflow3_geonear.js`
 
-To add a sample test data for nurse pings you can run the following command (This is seeding script):
+To add a sample test data for nurse pings you can run the following command (This is seeding script ONLY TO BE USED FOR LOCAL TESTING, AND NOT TO INCLUDE IN FINAL PROJECT):
 ```bash
 mongosh mongo/02_seed_nurse_pings.js
 ```
 And then for retrieving the nearest active nurses you can run the following command (This is the script that uses `$geoNear` to retrieve the nearest active nurses that have pinged recently):
 ```bash
-mongosh mongo/03_nearest_mobile_nurse.js
+mongosh mongo/02_workflow3_geonear.js
 ```
-Also I have HARD-CODED current patient location, that you will be able to see in `03_nearest_mobile_nurse.js`\
+Also I have HARD-CODED current patient location, that you will be able to see in `02_workflow3_geonear.js`\
 \
 You can add your test datas in this collection and run this retrieving script for more testing.
