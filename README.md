@@ -32,22 +32,28 @@ number rather than having one skipped.
 
 ### Output columns
 
-| Column | Meaning |
-| --- | --- |
-| `revenue_date` | the day being reported |
-| `clinic_name` | the clinic |
-| `daily_revenue` | copay taken that day, `0.00` if the clinic was quiet |
-| `rolling_total_7day` | copay taken over that day and the 6 days before it |
-| `moving_avg_7day` | `rolling_total_7day` divided by `days_in_window`, to 2 decimals |
-| `days_in_window` | how many days the average covers, below 7 only for the first 6 days of the range |
-| `clinic_rank` | position among all clinics that day by `moving_avg_7day`, ties share a rank |
+
+| Column               | Meaning                                                                          |
+| -------------------- | -------------------------------------------------------------------------------- |
+| `revenue_date`       | the day being reported                                                           |
+| `clinic_name`        | the clinic                                                                       |
+| `daily_revenue`      | copay taken that day, `0.00` if the clinic was quiet                             |
+| `rolling_total_7day` | copay taken over that day and the 6 days before it                               |
+| `moving_avg_7day`    | `rolling_total_7day` divided by `days_in_window`, to 2 decimals                  |
+| `days_in_window`     | how many days the average covers, below 7 only for the first 6 days of the range |
+| `clinic_rank`        | position among all clinics that day by `moving_avg_7day`, ties share a rank      |
+
+
+
 
 ### Files
 
 Two files were added for workflow 2:
 
-- `04_seed_window_analytics.sql` (test data only, needs to be removed before final submission)
-- `04_window_analytics.sql`
+- `06_seed_window_analytics.sql` (test data only, needs to be removed before final submission)
+- `06_window_analytics.sql`
+
+
 
 ### Executing Workflow 2
 
@@ -65,15 +71,17 @@ The seeded rows are chosen so the interesting cases are all visible in the
 output rather than having to be imagined:
 
 - Northside takes two copays on 3 March, and they are added together into one
-  daily figure of 200.00.
+daily figure of 200.00.
 - Northside has a 400.00 appointment on 5 March that is still `IN_CONSULTATION`,
-  and it stays out of the report.
+and it stays out of the report.
 - Riverside and Lakeview both take 700.00 on 5 March and nothing else that week,
-  so they sit tied on the same rank every day from 5 March to 15 March.
+so they sit tied on the same rank every day from 5 March to 15 March.
 - On 12 March that 700.00 drops off the back of the window and both fall to
-  0.00, which shows the window really is sliding.
+0.00, which shows the window really is sliding.
 - Hilltop has never discharged anyone, so it stays at 0.00 and ranks last.
 - The first six days show `days_in_window` climbing from 1 to 7.
+
+
 
 ### A note on dates
 
@@ -85,7 +93,11 @@ the same session gives the same answer no matter where it is run.
 
 ---
 
+
+
 ## Workflow 3 – Nearest Mobile Nurse
+
+
 
 ### Overview
 
