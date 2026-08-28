@@ -1,8 +1,64 @@
 # SSD-A1-Project-4-CareConnect
 
-## Workflow 2 – SQL Window Analytics
+---
 
-### Overview
+## Step 1: Database Setup
+
+### Creating PostgreSQL Tables
+
+#### Overview
+
+This step creates the PostgreSQL tables required for the project.
+
+#### File
+
+- `01_schema_ddl.sql`
+
+#### Executing the File
+
+```bash
+psql -d careconnect -f sql/01_schema_ddl.sql
+```
+
+
+
+![Relational ERD](docs/relational_erd.png)
+
+### Creating MongoDB Collections
+
+#### Overview
+
+This step creates the MongoDB collections required for the project.
+
+#### File
+
+- `01_collections_and_indexes.js`
+
+#### Executing the File
+
+```bash
+mongosh mongo/01_collections_and_indexes.js
+```
+
+---
+
+
+
+## Step 2: Database-Heavy Engineering Tasks
+
+---
+
+
+
+## Step 3: Complex Database Workflows (Pure Scripts)
+
+
+
+### Workflow 2 – SQL Window Analytics
+
+
+
+#### Overview
 
 Workflow 2 reports a 7 day moving average of copay revenue for every clinic and
 ranks the clinics against each other on each day using `DENSE_RANK()`.
@@ -10,13 +66,13 @@ ranks the clinics against each other on each day using `DENSE_RANK()`.
 The query is built out of CTEs and runs against the PostgreSQL tables created in
 `01_schema_ddl.sql`.
 
-### What counts as revenue
+#### What counts as revenue
 
 Only appointments with status `DISCHARGED` are counted, since the copay is
 earned once the visit is finished. This is the same rule
 `clinic_monthly_discharges` already uses in `05_materialized_views.sql`.
 
-### How the 7 day window is built
+#### How the 7 day window is built
 
 A clinic does not see patients every single day, and an average that quietly
 skipped the empty days would make a clinic that opened twice in a week look just
@@ -30,7 +86,7 @@ those 7 rows are always 7 calendar days.
 same average they share a position and the next clinic down still gets the next
 number rather than having one skipped.
 
-### Output columns
+#### Output columns
 
 
 | Column               | Meaning                                                                          |
@@ -46,7 +102,7 @@ number rather than having one skipped.
 
 
 
-### Files
+#### Files
 
 Two files were added for workflow 2:
 
@@ -55,7 +111,7 @@ Two files were added for workflow 2:
 
 
 
-### Executing Workflow 2
+#### Executing Workflow 2
 
 ```bash
 psql -d careconnect -f sql/04_seed_window_analytics.sql
@@ -65,7 +121,7 @@ psql -d careconnect -f sql/04_window_analytics.sql
 The seed script empties the four tables before it inserts, so do not point it at
 data you want to keep.
 
-### What the seed data covers
+#### What the seed data covers
 
 The seeded rows are chosen so the interesting cases are all visible in the
 output rather than having to be imagined:
@@ -83,7 +139,7 @@ so they sit tied on the same rank every day from 5 March to 15 March.
 
 
 
-### A note on dates
+#### A note on dates
 
 `created_at` is a `TIMESTAMPTZ`, so which calendar day a copay falls into
 depends on the session time zone. The seed timestamps are written without an
@@ -91,15 +147,11 @@ offset, so PostgreSQL reads them in whatever time zone the session happens to be
 using and the query then buckets them back the same way. Running both files in
 the same session gives the same answer no matter where it is run.
 
----
+### Workflow 3 – Nearest Mobile Nurse
 
 
 
-## Workflow 3 – Nearest Mobile Nurse
-
-
-
-### Overview
+#### Overview
 
 Workflow 3 uses MongoDB's `$geoNear` aggregation stage to locate the
 nearest active mobile nurse to a patient's current coordinates.
@@ -107,13 +159,13 @@ nearest active mobile nurse to a patient's current coordinates.
 The workflow operates on the `NursePings` collection in the
 `careconnect_db` database.
 
-### MongoDB Setup
+#### MongoDB Setup
 
 The `NursePings` collection uses a `2dsphere` index on the `location`
 field for geospatial queries.
 That is already done in Step 2.
 
-### NursePing Document Structure
+#### NursePing Document Structure
 
 Test NursePing documents use the following structure:
 
@@ -150,25 +202,21 @@ Also I have HARD-CODED current patient location, that you will be able to see in
 
 You can add your test datas in this collection and run this retrieving script for more testing.
 
----
+### Workflow 4 – Multi-Faceted Review Analytics
 
 
 
-## Workflow 4 – Multi-Faceted Review Analytics
-
-
-
-### Overview
+#### Overview
 
 Workflow 4 uses MongoDB's `$facet` aggregation stage to simultaneously extract rating buckets, determine frequent sentiment tags using the `$unwind` operator, and calculate the global average rating across the platform.
 
 The workflow operates on the `PatientReviews` collection in the `careconnect_db` database.
 
-### MongoDB Setup
+#### MongoDB Setup
 
 The `PatientReviews` collection utilizes standard indexes on fields like `clinic_id` and `rating` to optimize the aggregation pipeline operations. 
 
-### PatientReview Document Structure
+#### PatientReview Document Structure
 
 Test PatientReview documents use the following structure:
 
@@ -195,7 +243,7 @@ Test PatientReview documents use the following structure:
 
 
 
-### Executing Workflow 4:
+#### Executing Workflow 4:
 
 I have added two files for workflow 4:
 
@@ -211,3 +259,27 @@ mongosh mongo/03_workflow4_facet.js
 
 ---
 
+
+
+## Step 4: Data Generation & Stress Testing
+
+
+
+### Seeding MongoDB Collections
+
+This process populates the unstructured NoSQL collections with high-volume mock data to prove the indexing and aggregation pipelines work at scale. It utilizes Python and the Faker library.
+
+**Prerequisites**
+Install the necessary Python dependencies for database connections and data mocking:
+
+```bash
+pip install -r data_generation/requirements.txt
+```
+
+To seed the MongoDB collections, run the following command:
+
+```bash
+python data_generation/mongo_seeder_1.py
+```
+
+This will seed the `MedicalCatalogs` and `PatientReviews` collections with 1000 documents each.
