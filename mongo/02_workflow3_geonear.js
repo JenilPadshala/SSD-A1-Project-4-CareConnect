@@ -1,8 +1,9 @@
 // 17.4532608,78.359518
 db = db.getSiblingDB("careconnect_db");
+// Patient location (fixed)
 const patientLocation = {
     type: "Point",
-    coordinates: [17.4532608,78.359518]
+    coordinates: [78.359518, 17.4532608] // [Longitude, Latitude]
 };
 
 const nearNurses = db.NursePings.aggregate([
@@ -11,6 +12,7 @@ const nearNurses = db.NursePings.aggregate([
             near:patientLocation,
             key:"location",
             distanceField:"distance",
+            maxDistance:5000,
             query:{
                 active:true
             },

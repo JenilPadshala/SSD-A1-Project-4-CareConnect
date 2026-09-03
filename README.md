@@ -20,8 +20,6 @@ This step creates the PostgreSQL tables required for the project.
 psql -d careconnect -f sql/01_schema_ddl.sql
 ```
 
-
-
 ![Relational ERD](docs/relational_erd.png)
 
 ### Creating MongoDB Collections
@@ -41,8 +39,6 @@ mongosh mongo/01_collections_and_indexes.js
 ```
 
 ---
-
-
 
 ## Step 2: Database-Heavy Engineering Tasks
 
@@ -282,19 +278,29 @@ To seed the MongoDB collections, run the following command:
 python data_generation/mongo_seeder_1.py
 ```
 
-This will seed the `MedicalCatalogs` and `PatientReviews` collections with 1000 documents each.
+
+
+#### Seeded Collections Overview
+
+- MedicalCatalogs: 1,000 documents populated with randomized physician names, specialties, available time slots, and nested medication catalogs.
+- PatientReviews: 100,000 documents processed and inserted in memory-safe batches of 10,000, including randomized 1-5 star ratings, bedside-manner tags, and realistic timestamps.
+- NursePings: 500,000 geospatial telemetry documents distributed evenly across 5 unique nurses, localized within a ~5km radius of the base coordinates.
+
+
 
 ### Seeding PostgreSQL Tables
 
 `data_generation/postgres_seeder.py` fills the four relational tables with
 enough rows to clear the assignment's volume requirement:
 
-| Table               | Rows    |
-| ------------------- | ------- |
-| `clinics`           | 250     |
-| `patients`          | 25,000  |
-| `appointments`      | 60,000  |
+
+| Table               | Rows          |
+| ------------------- | ------------- |
+| `clinics`           | 250           |
+| `patients`          | 25,000        |
+| `appointments`      | 60,000        |
 | `wallet_audit_logs` | 116,000 or so |
+
 
 The exact ledger count moves a little because the number of movements per
 patient is random, but the script will not finish below 100,000.
@@ -318,6 +324,8 @@ psql -d careconnect -f sql/02_indexes.sql
 psql -d careconnect -f sql/03_triggers_and_audit.sql
 psql -d careconnect -f sql/05_materialized_views.sql
 ```
+
+
 
 #### Running it
 
@@ -368,6 +376,8 @@ globe, so distance between clinics means something. Around 8% are marked as not
 accepting patients, which is the branch `create_appointment_atomic()` rejects.
 - `random.seed()` and `Faker.seed()` are both fixed, so two people running this
 against a fresh database get the same rows.
+
+
 
 #### Verification
 
