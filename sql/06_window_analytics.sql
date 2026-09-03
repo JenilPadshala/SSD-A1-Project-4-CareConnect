@@ -4,19 +4,16 @@
 -- once the visit is finished. this is the same rule 05_materialized_views.sql
 -- already uses for clinic_monthly_discharges.
 --
--- created_at is timestamptz, so the day a copay falls into follows the session
--- time zone. run the seed script and this query in the same session so the
--- buckets line up.
 
 WITH daily_totals AS (
     -- one row per clinic per day that actually had a discharge
     SELECT
         clinic_id,
-        created_at::date AS revenue_date,
+        (created_at AT TIME ZONE 'UTC')::date AS revenue_date,
         SUM(copay_amount) AS daily_revenue
     FROM appointments
     WHERE status = 'DISCHARGED'
-    GROUP BY clinic_id, created_at::date
+    GROUP BY clinic_id, (created_at AT TIME ZONE 'UTC')::date
 ),
 reporting_period AS (
     -- the calendar range the data covers
