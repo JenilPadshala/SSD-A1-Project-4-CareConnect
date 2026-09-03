@@ -1,20 +1,16 @@
 # SSD-A1-Project-4-CareConnect
-
+[Github Repository Link](https://github.com/JenilPadshala/SSD-A1-Project-4-CareConnect)
 ---
-
-## Step 1: Database Setup
+## Step 1: Database Provisioning & Schema Constraints
 
 ### Creating PostgreSQL Tables
-
 #### Overview
 
-This step creates the PostgreSQL tables required for the project.
+Four tables: patients and their HSA wallets, clinics, a ledger of wallet movements, and appointments.
 
 #### File
 
-- `01_schema_ddl.sql`
-
-#### Executing the File
+- `sql/01_schema_ddl.sql`
 
 ```bash
 psql -d careconnect -f sql/01_schema_ddl.sql
@@ -22,236 +18,230 @@ psql -d careconnect -f sql/01_schema_ddl.sql
 
 ![Relational ERD](docs/relational_erd.png)
 
-### Creating MongoDB Collections
+#### What it creates
+
+- `patients` — name and an HSA balance that cannot go below `0.00`.
+- `clinics` — name, latitude, longitude, and whether the clinic is still taking patients.
+- `wallet_audit_logs` — one row per HSA movement (`amount_changed`, `action_type`, `balance_after`, `timestamp`). Step 1 only creates the table. The trigger in Step 2 is what writes into it.
+- `appointments` — patient, clinic, copay, and status (`WAITING`, `IN_CONSULTATION`, or `DISCHARGED`).
+
+### MongoDB collections
 
 #### Overview
 
-This step creates the MongoDB collections required for the project.
+Unstructured data that does not belong in the relational tables: specialist catalogs, patient reviews, and live nurse locations.
 
 #### File
 
-- `01_collections_and_indexes.js`
-
-#### Executing the File
+- `mongo/01_collections_and_indexes.js`
 
 ```bash
 mongosh mongo/01_collections_and_indexes.js
 ```
 
----
+The same script also builds the `2dsphere` and TTL indexes on `NursePings`. Those belong to Step 2; they are documented there.
 
+#### What it creates
+
+On `careconnect_db`:
+
+- `MedicalCatalogs` — specialist availability and medication details
+- `PatientReviews` — ratings, bedside-manner tags, and timestamps
+- `NursePings` — GeoJSON location logs for dispatched mobile nurses
+
+Document field names live in `docs/mongo_schema_map.json`. Mongo does not enforce that file as a validator.
+
+### Assumptions made by the team:
+- Primary keys are UUIDs, not integers.
+- `action_type` is only `CREDIT` or `DEBIT`.
+- Deleting a patient or clinic also deletes their appointments.
+- Mongo document fields:
+  - `MedicalCatalogs` — `clinic_id`, `specialist_name`, `specialty`,
+    `availability` (`day`, `slots`), `medications_handled` (`name`,
+    `dosage_forms`, `requires_rx`)
+  - `PatientReviews` — `appointment_id`, `clinic_id`, `patient_id`,
+    `rating`, `bedside_manner_tags`, `review_text`, `created_at`
+  - `NursePings` — `nurse_id`, `active`, GeoJSON `location`, `created_at`
+
+---
 ## Step 2: Database-Heavy Engineering Tasks
 
+### Partial indexing
+
+#### Overview
+
+A patient can have many `DISCHARGED` appointments, but only one open visit at a time (`WAITING` or `IN_CONSULTATION`).
+
+#### File
+
+- `sql/02_indexes.sql`
+
+```bash
+psql -d careconnect -f sql/02_indexes.sql
+```
+
+#### What it creates
+
+- `idx_active_consult` — unique on `appointments.patient_id` for rows that are still open. A second open visit for the same patient is rejected.
+- `idx_appointments_analytics` — on clinic and calendar day, for `DISCHARGED` rows only. Not required by the assignment; it is there for Workflow 2.
+
+### PostgreSQL trigger (audit logging)
+
+#### Overview
+
+When a patient's `hsa_balance` changes, a trigger writes the movement into `wallet_audit_logs`. Ordinary updates should not insert into the ledger by hand.
+
+#### File
+
+- `sql/03_triggers_and_audit.sql`
+
+```bash
+psql -d careconnect -f sql/03_triggers_and_audit.sql
+```
+
+#### What it creates
+
+`trigger_audit_hsa_balance` runs `AFTER UPDATE OF hsa_balance` on `patients`. The function `log_hsa_balance_change()` writes:
+- `amount_changed` — size of the move (always positive)
+- `action_type` — `CREDIT` if the balance rose, `DEBIT` if it fell
+- `balance_after` — the new balance
+
+Workflow 1 only updates `patients.hsa_balance`. The trigger is what creates the matching audit row.
+
+### Materialized view
+
+#### Overview
+
+Monthly discharge counts per clinic, stored so they do not have to be recomputed from `appointments` every time.
+
+#### File
+
+- `sql/05_materialized_views.sql`
+
+```bash
+psql -d careconnect -f sql/05_materialized_views.sql
+```
+
+#### What it creates
+
+- `clinic_monthly_discharges` — `DISCHARGED` appointments grouped by `clinic_id` and calendar month, with `total_discharges`
+- `idx_clinic_month_discharge` — unique on `(clinic_id, discharge_month)`, needed for a concurrent refresh
+- `refresh_clinic_discharges_mv()` — refreshes the view without blocking readers
+
+```sql
+SELECT refresh_clinic_discharges_mv();
+```
+
+The PostgreSQL seeder in Step 4 calls this after the load.
+
+### MongoDB geospatial and TTL indexes
+
+#### Overview
+
+A `2dsphere` index on nurse locations for Workflow 3, and a TTL index that drops pings after two hours.
+
+#### File
+
+- `mongo/01_collections_and_indexes.js` (same file as Step 1)
+
+```bash
+mongosh mongo/01_collections_and_indexes.js
+```
+
+#### What it creates
+
+On `NursePings` in `careconnect_db`:
+
+- a `2dsphere` index on `location`
+- a TTL index on `created_at` with `expireAfterSeconds: 7200`
+
+### Assumptions made by the team:
+
+- `idx_appointments_analytics` is extra; the assignment only asks for the active-consult unique index.
+- Calendar days for that index are taken in UTC.
+- The materialized view counts only `DISCHARGED` appointments, by calendar month of `created_at`.
+
 ---
-
-
-
 ## Step 3: Complex Database Workflows (Pure Scripts)
 
-
-
-### Workflow 2 – SQL Window Analytics
-
-
+### Workflow 1: Atomic Appointment (Stored Procedure)
 
 #### Overview
 
-Workflow 2 reports a 7 day moving average of copay revenue for every clinic and
-ranks the clinics against each other on each day using `DENSE_RANK()`.
+A PL/pgSQL Stored Procedure to safely deduct HSA balances, create the appointment, and log the audit trail atomically. It rolls back on constraint failure.
 
-The query is built out of CTEs and runs against the PostgreSQL tables created in
-`01_schema_ddl.sql`.
+#### File
 
-#### What counts as revenue
-
-Only appointments with status `DISCHARGED` are counted, since the copay is
-earned once the visit is finished. This is the same rule
-`clinic_monthly_discharges` already uses in `05_materialized_views.sql`.
-
-#### How the 7 day window is built
-
-A clinic does not see patients every single day, and an average that quietly
-skipped the empty days would make a clinic that opened twice in a week look just
-as strong as one that opened every day. So the query first builds a calendar
-with one row per clinic per day across the whole reporting range, fills the
-missing days with `0.00`, and only then averages over
-`ROWS BETWEEN 6 PRECEDING AND CURRENT ROW`. Because the calendar has no holes,
-those 7 rows are always 7 calendar days.
-
-`DENSE_RANK()` is used instead of `RANK()` so that when two clinics land on the
-same average they share a position and the next clinic down still gets the next
-number rather than having one skipped.
-
-#### Output columns
-
-
-| Column               | Meaning                                                                          |
-| -------------------- | -------------------------------------------------------------------------------- |
-| `revenue_date`       | the day being reported                                                           |
-| `clinic_name`        | the clinic                                                                       |
-| `daily_revenue`      | copay taken that day, `0.00` if the clinic was quiet                             |
-| `rolling_total_7day` | copay taken over that day and the 6 days before it                               |
-| `moving_avg_7day`    | `rolling_total_7day` divided by `days_in_window`, to 2 decimals                  |
-| `days_in_window`     | how many days the average covers, below 7 only for the first 6 days of the range |
-| `clinic_rank`        | position among all clinics that day by `moving_avg_7day`, ties share a rank      |
-
-
-
-
-#### Files
-
-Two files were added for workflow 2:
-
-- `06_seed_window_analytics.sql` (test data only, needs to be removed before final submission)
-- `06_window_analytics.sql`
-
-
-
-#### Executing Workflow 2
+- `sql/04_stored_procedures.sql`
 
 ```bash
-psql -d careconnect -f sql/04_seed_window_analytics.sql
-psql -d careconnect -f sql/04_window_analytics.sql
+psql -d careconnect -f sql/04_stored_procedures.sql
 ```
 
-The seed script empties the four tables before it inserts, so do not point it at
-data you want to keep.
+#### What it creates
 
-#### What the seed data covers
+- `create_appointment_atomic()` — A stored procedure that starts a transaction, locks the patient and clinic rows to prevent race conditions, deducts the copay from the HSA balance, and creates a `WAITING` appointment. If the HSA balance is insufficient, it raises an exception and rolls back. The `wallet_audit_logs` record is inserted automatically by the trigger.
 
-The seeded rows are chosen so the interesting cases are all visible in the
-output rather than having to be imagined:
-
-- Northside takes two copays on 3 March, and they are added together into one
-daily figure of 200.00.
-- Northside has a 400.00 appointment on 5 March that is still `IN_CONSULTATION`,
-and it stays out of the report.
-- Riverside and Lakeview both take 700.00 on 5 March and nothing else that week,
-so they sit tied on the same rank every day from 5 March to 15 March.
-- On 12 March that 700.00 drops off the back of the window and both fall to
-0.00, which shows the window really is sliding.
-- Hilltop has never discharged anyone, so it stays at 0.00 and ranks last.
-- The first six days show `days_in_window` climbing from 1 to 7.
-
-
-
-#### A note on dates
-
-`created_at` is a `TIMESTAMPTZ`, so which calendar day a copay falls into
-depends on the session time zone. The seed timestamps are written without an
-offset, so PostgreSQL reads them in whatever time zone the session happens to be
-using and the query then buckets them back the same way. Running both files in
-the same session gives the same answer no matter where it is run.
-
-### Workflow 3 – Nearest Mobile Nurse
-
-
+### Workflow 2: SQL Window Analytics
 
 #### Overview
 
-Workflow 3 uses MongoDB's `$geoNear` aggregation stage to locate the
-nearest active mobile nurse to a patient's current coordinates.
+A SQL script utilizing CTEs and Window Functions to calculate a 7-day moving average of copay revenue per clinic, ranked via `DENSE_RANK()`.
 
-The workflow operates on the `NursePings` collection in the
-`careconnect_db` database.
+#### File
 
-#### MongoDB Setup
-
-The `NursePings` collection uses a `2dsphere` index on the `location`
-field for geospatial queries.
-That is already done in Step 2.
-
-#### NursePing Document Structure
-
-Test NursePing documents use the following structure:
-
-```javascript
-{
-    nurse_id: "N001",
-    active: true,
-    location: {
-        type: "Point",
-        coordinates: [longitude, latitude]
-    },
-    created_at: new Date()
-}
-```
-
-Also we have two files for this workflow 3
-
-- `02_seed_nurse_pings.js`
-- `02_workflow3_geonear.js`
-
-To add a sample test data for nurse pings you can run the following command (This is seeding script ONLY TO BE USED FOR LOCAL TESTING, AND NOT TO INCLUDE IN FINAL PROJECT):
+- `sql/06_window_analytics.sql`
 
 ```bash
-mongosh mongo/02_seed_nurse_pings.js
+psql -d careconnect -f sql/06_window_analytics.sql
 ```
 
-And then for retrieving the nearest active nurses you can run the following command (This is the script that uses `$geoNear` to retrieve the nearest active nurses that have pinged recently):
+#### What it executes
+
+Executes a query calculating the 7-day moving average of copay revenue (using `DISCHARGED` appointments) and returns the calendar day, clinic name, daily revenue, 7-day rolling total, 7-day moving average, days in window, and clinic rank based on the moving average.
+
+### Workflow 3: Nearest Mobile Nurse
+
+#### Overview
+
+A MongoDB `$geoNear` aggregation pipeline locating the closest active mobile nurse to a patient's coordinates within a 5km radius.
+
+#### File
+
+- `mongo/02_workflow3_geonear.js`
 
 ```bash
 mongosh mongo/02_workflow3_geonear.js
 ```
 
-Also I have HARD-CODED current patient location, that you will be able to see in `02_workflow3_geonear.js`  
+#### What it executes
 
-You can add your test datas in this collection and run this retrieving script for more testing.
+Executes a MongoDB aggregation pipeline on `NursePings` utilizing the `$geoNear` stage to find the closest documents to a patient's geospatial point, filters for active nurses, and returns the nearest active mobile nurse.
 
-### Workflow 4 – Multi-Faceted Review Analytics
-
-
+### Workflow 4: Multi-Faceted Review Analytics
 
 #### Overview
 
-Workflow 4 uses MongoDB's `$facet` aggregation stage to simultaneously extract rating buckets, determine frequent sentiment tags using the `$unwind` operator, and calculate the global average rating across the platform.
+A MongoDB aggregation pipeline using `$facet` to extract rating buckets, frequent sentiment tags via `$unwind`, and global average ratings.
 
-The workflow operates on the `PatientReviews` collection in the `careconnect_db` database.
+#### File
 
-#### MongoDB Setup
-
-The `PatientReviews` collection utilizes standard indexes on fields like `clinic_id` and `rating` to optimize the aggregation pipeline operations. 
-
-#### PatientReview Document Structure
-
-Test PatientReview documents use the following structure:
-
-```javascript
-
-{
-
-    appointment_id: "A001",
-
-    clinic_id: "C001",
-
-    patient_id: "P001",
-
-    rating: 5,
-
-    bedside_manner_tags: ["empathetic", "punctual", "clear-instructions"],
-
-    review_text: "Great experience.",
-
-    created_at: new Date()
-
-}
-```
-
-
-
-#### Executing Workflow 4:
-
-I have added two files for workflow 4:
-
-- `03_seed_workflow4.js` (temporary, need to be removed before final submission)
-- `03_workflow4_facet.js`
-
-Run the following commands to test workflow 4:
+- `mongo/03_workflow4_facet.js`
 
 ```bash
-mongosh mongo/03_seed_workflow4.js
 mongosh mongo/03_workflow4_facet.js
 ```
+
+#### What it executes
+
+Executes a MongoDB pipeline on `PatientReviews` that leverages `$facet` to simultaneously output the distribution of reviews across 1-5 stars, the most frequently used bedside manner tags (via `$unwind`), and the platform's overall average rating.
+
+### Assumptions made by the team:
+
+- **Workflow 1**: New appointments are initialized with a `'WAITING'` status. The procedure relies entirely on the trigger from Step 2 to generate the audit log.
+- **Workflow 2**: Only `'DISCHARGED'` appointments generate revenue. Missing calendar days are explicitly padded with `0.00` to guarantee the 7-day average covers 7 chronological calendar days.
+- **Workflow 3**: The maximum search radius for a mobile nurse is capped at 5,000 meters (5km). The result is limited to a single closest nurse (`$limit: 1`) who must be active (`active: true`).
+- **Workflow 4**: The rating distribution buckets assume standard 1 to 5 star ratings. The most frequent bedside manner tags result is limited to the top 5 tags.
 
 ---
 
