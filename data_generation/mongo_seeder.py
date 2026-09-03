@@ -92,8 +92,7 @@ def seed_nurse_pings(db, total_pings=500000, batch_size=10000):
                     "type": "Point",
                     "coordinates": [lng, lat]
                 },
-                # Pings spread across the last 24 hours
-                "created_at": datetime.now() - timedelta(minutes=random.randint(0, 1440))
+                "created_at": datetime.now() - timedelta(minutes=random.randint(0, 119)) # TTL window
             }
             batch.append(ping)
         

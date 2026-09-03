@@ -11,7 +11,7 @@ db.NursePings.createIndex({ "location": "2dsphere" });
 
 // create the Time-To-Live (TTL) Index with 2 hours expiration
 db.NursePings.createIndex(
-    { "created_at": 1 }, 
+    { "created_at": 1 },
     { expireAfterSeconds: 7200 }
 );
 
