@@ -1,90 +1,250 @@
 {
-    "MedicalCatalogs": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "description": "Flexible catalog documents with nested items, categories, and customization addons.",
-      "required": [],
-      "properties": {},
-      "$defs": {}
-    },
-    "NursePings": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "required": ["_id", "active", "created_at", "location", "nurse_id"],
-      "properties": {
-        "_id": { "$ref": "#/$defs/ObjectId" },
-        "active": { "type": "boolean" },
-        "created_at": { "$ref": "#/$defs/Date" },
-        "location": {
-          "type": "object",
-          "required": ["coordinates", "type"],
-          "properties": {
-            "coordinates": {
-              "type": "array",
-              "items": { "$ref": "#/$defs/Double" }
-            },
-            "type": { "type": "string" }
-          }
-        },
-        "nurse_id": { "type": "string" }
+  "MedicalCatalogs": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "_id",
+      "availability",
+      "clinic_id",
+      "medications_handled",
+      "specialist_name",
+      "specialty"
+    ],
+    "properties": {
+      "_id": {
+        "$ref": "#/$defs/ObjectId"
       },
-      "$defs": {
-        "ObjectId": {
+      "availability": {
+        "type": "array",
+        "items": {
           "type": "object",
+          "required": [
+            "day",
+            "slots"
+          ],
           "properties": {
-            "$oid": { "type": "string", "pattern": "^[0-9a-fA-F]{24}$" }
-          },
-          "required": ["$oid"],
-          "additionalProperties": false
-        },
-        "Double": {
-          "oneOf": [
-            { "type": "number" },
-            { "type": "object", "properties": { "$numberDouble": { "enum": ["Infinity", "-Infinity", "NaN"] } } }
-          ]
-        },
-        "Date": {
-          "type": "object",
-          "properties": { "$date": { "type": "string", "format": "date-time" } },
-          "required": ["$date"],
-          "additionalProperties": false
+            "day": {
+              "type": "string"
+            },
+            "slots": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
         }
+      },
+      "clinic_id": {
+        "type": "string"
+      },
+      "medications_handled": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "dosage_forms",
+            "name",
+            "requires_rx"
+          ],
+          "properties": {
+            "dosage_forms": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "name": {
+              "type": "string"
+            },
+            "requires_rx": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "specialist_name": {
+        "type": "string"
+      },
+      "specialty": {
+        "type": "string"
       }
     },
-    "PatientReviews": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "required": [
-        "_id", "appointment_id", "bedside_manner_tags", "clinic_id", "created_at", "patient_id", "rating", "review_text"
-      ],
-      "properties": {
-        "_id": { "$ref": "#/$defs/ObjectId" },
-        "appointment_id": { "type": "string" },
-        "bedside_manner_tags": {
-          "type": "array",
-          "items": { "type": "string" }
+    "$defs": {
+      "ObjectId": {
+        "type": "object",
+        "properties": {
+          "$oid": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{24}$"
+          }
         },
-        "clinic_id": { "type": "string" },
-        "created_at": { "$ref": "#/$defs/Date" },
-        "patient_id": { "type": "string" },
-        "rating": { "type": "integer" },
-        "review_text": { "type": "string" }
+        "required": [
+          "$oid"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "NursePings": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "_id",
+      "active",
+      "created_at",
+      "location",
+      "nurse_id"
+    ],
+    "properties": {
+      "_id": {
+        "$ref": "#/$defs/ObjectId"
       },
-      "$defs": {
-        "ObjectId": {
-          "type": "object",
-          "properties": {
-            "$oid": { "type": "string", "pattern": "^[0-9a-fA-F]{24}$" }
+      "active": {
+        "type": "boolean"
+      },
+      "created_at": {
+        "$ref": "#/$defs/Date"
+      },
+      "location": {
+        "type": "object",
+        "required": [
+          "coordinates",
+          "type"
+        ],
+        "properties": {
+          "coordinates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Double"
+            }
           },
-          "required": ["$oid"],
-          "additionalProperties": false
-        },
-        "Date": {
-          "type": "object",
-          "properties": { "$date": { "type": "string", "format": "date-time" } },
-          "required": ["$date"],
-          "additionalProperties": false
+          "type": {
+            "type": "string"
+          }
         }
+      },
+      "nurse_id": {
+        "type": "string"
+      }
+    },
+    "$defs": {
+      "ObjectId": {
+        "type": "object",
+        "properties": {
+          "$oid": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{24}$"
+          }
+        },
+        "required": [
+          "$oid"
+        ],
+        "additionalProperties": false
+      },
+      "Double": {
+        "oneOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "$numberDouble": {
+                "enum": [
+                  "Infinity",
+                  "-Infinity",
+                  "NaN"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "Date": {
+        "type": "object",
+        "properties": {
+          "$date": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "$date"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "PatientReviews": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "_id",
+      "appointment_id",
+      "bedside_manner_tags",
+      "clinic_id",
+      "created_at",
+      "patient_id",
+      "rating",
+      "review_text"
+    ],
+    "properties": {
+      "_id": {
+        "$ref": "#/$defs/ObjectId"
+      },
+      "appointment_id": {
+        "type": "string"
+      },
+      "bedside_manner_tags": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "clinic_id": {
+        "type": "string"
+      },
+      "created_at": {
+        "$ref": "#/$defs/Date"
+      },
+      "patient_id": {
+        "type": "string"
+      },
+      "rating": {
+        "type": "integer"
+      },
+      "review_text": {
+        "type": "string"
+      }
+    },
+    "$defs": {
+      "ObjectId": {
+        "type": "object",
+        "properties": {
+          "$oid": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{24}$"
+          }
+        },
+        "required": [
+          "$oid"
+        ],
+        "additionalProperties": false
+      },
+      "Date": {
+        "type": "object",
+        "properties": {
+          "$date": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "$date"
+        ],
+        "additionalProperties": false
       }
     }
   }
+}
