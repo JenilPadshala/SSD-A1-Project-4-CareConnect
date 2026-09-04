@@ -1,6 +1,7 @@
 # SSD-A1-Project-4-CareConnect
 
-## [Github Repository Link](https://github.com/JenilPadshala/SSD-A1-Project-4-CareConnect)
+## [Github Repository Link: https://github.com/JenilPadshala/SSD-A1-Project-4-CareConnect](https://github.com/JenilPadshala/SSD-A1-Project-4-CareConnect)
+## Final Commit Hash: 626b4eb575917db822e26671bdcdfa02002f7990
 
 ## Step 1: Database Provisioning & Schema Constraints
 
