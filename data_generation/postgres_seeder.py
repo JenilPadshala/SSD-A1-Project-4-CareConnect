@@ -72,14 +72,14 @@ COPAY_CENTS = [1500, 2000, 2500, 3000, 4000, 5000, 7500, 10000, 12500, 15000,
 # clinics are scattered around a handful of metros rather than the whole globe,
 # otherwise the geo side of the project has nothing sensible to sort by
 METROS = [
-    ("New York", 40.7128, -74.0060),
-    ("Chicago", 41.8781, -87.6298),
-    ("Houston", 29.7604, -95.3698),
-    ("Phoenix", 33.4484, -112.0740),
-    ("Philadelphia", 39.9526, -75.1652),
-    ("San Diego", 32.7157, -117.1611),
-    ("Seattle", 47.6062, -122.3321),
-    ("Boston", 42.3601, -71.0589),
+    ("Hyderabad", 17.3850, 78.4867),
+    ("Mumbai", 19.0760, 72.8777),
+    ("Delhi", 28.6139, 77.2090),
+    ("Bengaluru", 12.9716, 77.5946),
+    ("Chennai", 13.0827, 80.2707),
+    ("Kolkata", 22.5726, 88.3639),
+    ("Pune", 18.5204, 73.8567),
+    ("Ahmedabad", 23.0225, 72.5714),
 ]
 
 CLINIC_KINDS = ["Family Clinic", "Urgent Care", "Health Center", "Medical Group",
